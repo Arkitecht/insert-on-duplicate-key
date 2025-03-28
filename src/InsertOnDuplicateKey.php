@@ -100,10 +100,10 @@ trait InsertOnDuplicateKey
     }
 
     /**
-    * Static function for getting connection name
-    *
-    * @return string
-    */
+     * Static function for getting connection name
+     *
+     * @return string
+     */
     public static function getModelConnectionName()
     {
         $class = get_called_class();
@@ -219,6 +219,21 @@ trait InsertOnDuplicateKey
         return implode(', ', $out);
     }
 
+    protected static function buildValuesListSqlite(array $updatedColumns)
+    {
+        $out = [];
+
+        foreach ($updatedColumns as $key => $value) {
+            if (is_numeric($key)) {
+                $out[] = sprintf('`%s` = excluded.%s', $value, $value);
+            } else {
+                $out[] = sprintf('%s = excluded.%s', $key, $value);
+            }
+        }
+
+        return implode(', ', $out);
+    }
+
     /**
      * Inline a multiple dimensions array.
      *
@@ -259,6 +274,19 @@ trait InsertOnDuplicateKey
         $sql .=  static::buildQuestionMarks($data, $dontEscapeColumns) . PHP_EOL;
 
         $connection = config('database.default');
+
+        if ($connection === 'sqlite') {
+            $sql .= 'ON CONFLICT(ptn) DO UPDATE SET';
+
+            if (empty($updateColumns)) {
+                $sql .= static::buildValuesListSqlite(array_keys($first));
+            } else {
+                $sql .= static::buildValuesListSqlite($updateColumns);
+            }
+
+            return $sql;
+        }
+
         if ($connection !== 'mysql') {
             return $sql;
         }
